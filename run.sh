@@ -13,6 +13,7 @@ conda activate amdim_env
 pip install --upgrade pip
 pip install --upgrade numpy
 pip install --upgrade scikit-image
+pip install --upgrade scikit-learn
 pip install tifffile
 pip install tqdm
 pip install albumentations

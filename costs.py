@@ -144,27 +144,32 @@ class LossMultiNCE(nn.Module):
     '''
 
     def __init__(self, tclip=10.):
-        super(LossMultiNCE, self).__init__()
+        super().__init__()
+        
         # initialize the dataparallel nce computer (magic!)
         self.nce_func = NCE_MI_MULTI(tclip=tclip)
         self.nce_func = nn.DataParallel(self.nce_func)
+        
         # construct masks for sampling source features from 5x5 layer
         masks_r5 = np.zeros((5, 5, 1, 5, 5))
         for i in range(5):
             for j in range(5):
                 masks_r5[i, j, 0, i, j] = 1
-        masks_r5 = torch.tensor(masks_r5).type(torch.uint8)
+        
+        masks_r5 = torch.tensor(masks_r5).type(torch.bool)
         masks_r5 = masks_r5.reshape(-1, 1, 5, 5)
         self.masks_r5 = nn.Parameter(masks_r5, requires_grad=False)
 
     def _sample_src_ftr(self, r_cnv, masks):
         # get feature dimensions
         n_batch = r_cnv.size(0)
-        n_rkhs = r_cnv.size(1)
+        n_rkhs  = r_cnv.size(1)
+        
         if masks is not None:
             # subsample from conv-ish r_cnv to get a single vector
             mask_idx = torch.randint(0, masks.size(0), (n_batch,))
-            r_cnv = torch.masked_select(r_cnv, masks[mask_idx])
+            r_cnv    = torch.masked_select(r_cnv, masks[mask_idx])
+        
         # flatten features for use as globals in glb->lcl nce cost
         r_vec = r_cnv.reshape(n_batch, n_rkhs)
         return r_vec

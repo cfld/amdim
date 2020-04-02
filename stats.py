@@ -89,3 +89,21 @@ def update_train_accuracies(epoch_stats, labels, lgt_glb_mlp, lgt_glb_lin):
             hit_glb_lin = 1 if (max_lgt_glb_lin[j] == labels_np[j]) else 0
             epoch_stats.update('train_acc_glb_mlp', hit_glb_mlp, n=1)
             epoch_stats.update('train_acc_glb_lin', hit_glb_lin, n=1)
+
+from sklearn import metrics
+def update_train_accuracies_multilabel(epoch_stats, labels, lgt_glb_mlp, lgt_glb_lin):
+    labels_np  = labels.cpu().numpy().ravel()
+    mlp_scores = lgt_glb_mlp.data.cpu().numpy().ravel()
+    lin_scores = lgt_glb_lin.data.cpu().numpy().ravel()
+    
+    mlp_auc = metrics.roc_auc_score(labels_np, mlp_scores)
+    lin_auc = metrics.roc_auc_score(labels_np, lin_scores)
+    epoch_stats.update('train_acc_glb_mlp', mlp_auc, n=1)
+    epoch_stats.update('train_acc_glb_lin', lin_auc, n=1)
+    
+    return mlp_auc, lin_auc
+
+
+
+
+

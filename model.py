@@ -12,14 +12,14 @@ from costs import LossMultiNCE
 def has_many_gpus():
     return torch.cuda.device_count() >= 6
 
-
 class Encoder(nn.Module):
-    def __init__(self, dummy_batch, num_channels=3, ndf=64, n_rkhs=512, 
-                n_depth=3, encoder_size=32, use_bn=False):
-        super(Encoder, self).__init__()
-        self.ndf = ndf
-        self.n_rkhs = n_rkhs
-        self.use_bn = use_bn
+    def __init__(self, dummy_batch, num_channels=3, ndf=64, n_rkhs=512,  n_depth=3, encoder_size=32, use_bn=False):
+        
+        super().__init__()
+        
+        self.ndf       = ndf
+        self.n_rkhs    = n_rkhs
+        self.use_bn    = use_bn
         self.dim2layer = None
 
         # encoding block for local features
@@ -143,11 +143,10 @@ class Evaluator(nn.Module):
         else:
             # infer input feature dimensions from provided features
             self.dim_1 = ftr_1.size(1)
-        self.n_classes = n_classes
-        self.block_glb_mlp = \
-            MLPClassifier(self.dim_1, self.n_classes, n_hidden=1024, p=0.2)
-        self.block_glb_lin = \
-            MLPClassifier(self.dim_1, self.n_classes, n_hidden=None, p=0.0)
+        
+        self.n_classes     = n_classes
+        self.block_glb_mlp = MLPClassifier(self.dim_1, self.n_classes, n_hidden=1024, p=0.2)
+        self.block_glb_lin = MLPClassifier(self.dim_1, self.n_classes, n_hidden=None, p=0.0)
 
     def forward(self, ftr_1):
         '''
@@ -167,8 +166,7 @@ class Evaluator(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, ndf, n_classes, n_rkhs, tclip=20.,
-                 n_depth=3, encoder_size=32, use_bn=False):
+    def __init__(self, ndf, n_classes, n_rkhs, in_channels=3, tclip=20., n_depth=3, encoder_size=32, use_bn=False):
         super(Model, self).__init__()
         self.hyperparams = {
             'ndf': ndf,
@@ -182,10 +180,10 @@ class Model(nn.Module):
 
         # self.n_rkhs = n_rkhs
         self.tasks = ('1t5', '1t7', '5t5', '5t7', '7t7')
-        dummy_batch = torch.zeros((2, 3, encoder_size, encoder_size))
+        dummy_batch = torch.zeros((2, in_channels, encoder_size, encoder_size))
 
         # encoder that provides multiscale features
-        self.encoder = Encoder(dummy_batch, num_channels=3, ndf=ndf, 
+        self.encoder = Encoder(dummy_batch, num_channels=in_channels, ndf=ndf, 
                                n_rkhs=n_rkhs, n_depth=n_depth,
                                encoder_size=encoder_size, use_bn=use_bn)
         rkhs_1, rkhs_5, _ = self.encoder(dummy_batch)
@@ -275,8 +273,8 @@ class Model(nn.Module):
             r1_x2, r5_x2, r7_x2 = r1_x2[1:], r5_x2[1:], r7_x2[1:]
 
         # compute NCE infomax objective at multiple scales
-        loss_1t5, loss_1t7, loss_5t5, lgt_reg = \
-            self.g2l_loss(r1_x1, r5_x1, r7_x1, r1_x2, r5_x2, r7_x2)
+        loss_1t5, loss_1t7, loss_5t5, lgt_reg = self.g2l_loss(r1_x1, r5_x1, r7_x1, r1_x2, r5_x2, r7_x2)
+        
         res_dict['g2l_1t5'] = loss_1t5
         res_dict['g2l_1t7'] = loss_1t7
         res_dict['g2l_5t5'] = loss_5t5
@@ -395,7 +393,7 @@ class FakeRKHSConvNet(nn.Module):
             for i in range(n_input):
                 eye_mask[i, i, 0, 0] = 1
             self.shortcut.weight.data.uniform_(-0.01, 0.01)
-            self.shortcut.weight.data.masked_fill_(torch.tensor(eye_mask), 1.)
+            self.shortcut.weight.data.masked_fill_(torch.tensor(eye_mask).bool(), 1.)
         return
 
     def init_weights(self, init_scale=1.):

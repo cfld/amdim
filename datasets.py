@@ -26,7 +26,7 @@ def get_encoder_size(dataset):
     if dataset in [Dataset.IN128, Dataset.PLACES205]:
         return 128
     if dataset == Dataset.BEN:
-        return 32
+        return 128
     raise RuntimeError("Couldn't get encoder size, unknown dataset: {}".format(dataset))
 
 
@@ -246,11 +246,9 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         valid_dataset   = datasets.ImageFolder(valid_dir, test_transform)
     
     elif dataset == Dataset.BEN:
-        num_classes = 19
-        
         train_dataset = BigEarthNet(split='train', root=input_dir)
-        valid_dataset = BigEarthNet(split='valid', root=input_dir)
-        
+        valid_dataset = BigEarthNet(split='val', root=input_dir)
+        num_classes   = train_dataset.num_classes
 
     # build pytorch dataloaders for the datasets
     

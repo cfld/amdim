@@ -5,11 +5,8 @@
 """
 
 import os
-import json
+import pickle
 import numpy as np
-from glob import glob
-from PIL import Image
-from tifffile import imread as tiffread
 
 import torch
 from torchvision import transforms
@@ -73,7 +70,7 @@ class AugmentBEN:
             atransforms.HorizontalFlip(p=0.5),
             atransforms.RandomRotate90(p=1.0),
             atransforms.ShiftScaleRotate(p=1.0),
-            atransforms.RandomSizedCrop((60, 120), height=120, width=120, interpolation=3),
+            atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
             # atransforms.Lambda(drop_channels) # !! Maybe too much noise?
             # {jitter color, random greyscale}
         ])
@@ -94,29 +91,41 @@ class AugmentBEN:
 
 
 class BigEarthNet(Dataset):
-    def __init__(self, split, root='/home/ubuntu/projects/benet/data/bigearthnet'):
-        self.split      = split
-        self.patch_dirs = sorted(glob(os.path.join(root, '*')))
+    def __init__(self, split, root):
+        self.root        = root
+        self.split       = split
+        
+        self.patch_names = open(f'data/ben_splits/{split}.csv').read().splitlines()
+        self.patch_names = np.random.permutation(self.patch_names)
+        
+        self.labels      = pickle.load(open('data/labels_ben_19.pkl', 'rb'))
+        self.num_classes = len(np.unique(np.hstack(list(self.labels.values()))))
         
         transform = AugmentBEN()
         if split == 'train':
             self.transform = transform
-        elif split == 'valid':
+        elif split in ['val', 'test']:
             self.transform = transform.valid_transform
         else:
             raise Exception
     
     def __len__(self):
-        return len(self.patch_dirs)
+        return len(self.patch_names)
     
     def __getitem__(self, idx):
-        patch_dir = self.patch_dirs[idx]
+        patch_name = self.patch_names[idx]
+        patch_file = os.path.join(self.root, patch_name + '.npy')
         
-        patch = load_patch(patch_dir)
-        patch = patch.transpose(1, 2, 0)
-        patch = patch.astype(np.float32)
+        X = np.load(patch_file)
+        X = X.transpose(1, 2, 0)
+        X = X.astype(np.float32)
+        X = self.transform(X)
         
-        return self.transform(patch), load_labels(patch_dir)
+        y = torch.zeros(self.num_classes)
+        y[self.labels[patch_name]] = 1
+        
+        return X, y
 
-# b = BigEarthNet(split='train')
+# root = '/raid/users/bjohnson/projects/benet/data/bigearthnet_patches/'
+# b = BigEarthNet(split='val', root=root)
 # b[1000]
