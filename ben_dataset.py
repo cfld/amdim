@@ -54,8 +54,8 @@ BAND_STATS = {
 # --
 # Helpers
 
-def drop_channels(x, p=0.2, **kwargs):
-    sel = np.random.uniform(0, 1, x.shape[-1]) < p
+def drop_channels(x, **kwargs):
+    sel = np.random.uniform(0, 1, x.shape[-1]) < (2 / len(BANDS))
     if sel.sum() == 0:
         return x
     else:
@@ -71,8 +71,11 @@ class BENTransformTrain:
             atransforms.RandomRotate90(p=1.0),
             atransforms.ShiftScaleRotate(p=1.0),
             atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
-            # atransforms.Lambda(drop_channels) # !! Maybe too much noise?
-            # {jitter color, random greyscale}
+            
+            atransforms.RandomBrightness(p=0.5),
+            atransforms.GridDistortion(num_steps=3),  # !! Maybe too much noise?
+            atransforms.Lambda(drop_channels, p=0.5), # !! Maybe too much noise?
+            # ?? jitter color
         ])
         
         self.post_transform = transforms.Compose([
