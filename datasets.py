@@ -248,8 +248,8 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
     elif dataset == Dataset.BEN:
         num_classes = 19
         
-        train_dataset = BigEarthNet(split='train')
-        valid_dataset = BigEarthNet(split='valid')
+        train_dataset = BigEarthNet(split='train', root=input_dir)
+        valid_dataset = BigEarthNet(split='valid', root=input_dir)
         
 
     # build pytorch dataloaders for the datasets

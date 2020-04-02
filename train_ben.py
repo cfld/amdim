@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-
+    train_ben.py
 """
 
 import os
@@ -21,6 +21,8 @@ from task_classifiers import train_classifiers
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--input_dir', type=str, default='/raid/users/bjohnson/projects/benet/data/bigearthnet_patches/')
     
     # parameters for general training stuff
     parser.add_argument('--batch_size',    type=int, default=200)
@@ -70,7 +72,7 @@ stat_tracker = StatTracker(log_dir=log_dir)
 train_loader, test_loader, num_classes = build_dataset(
     dataset=dataset,
     batch_size=args.batch_size,
-    input_dir=None,
+    input_dir=args.input_dir,
     labeled_only=args.classifiers,
     num_workers=8
 )

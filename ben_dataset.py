@@ -21,23 +21,6 @@ from torch.utils.data import Dataset
 # --
 # Helpers
 
-def get_name2new():
-    label_indices = json.load(open('ben_label_indices.json'))
-    name2old      = label_indices['original_labels']
-    
-    old2new = {}
-    for new, olds in enumerate(label_indices['label_conversion']):
-        for o in olds:
-            old2new[o] = new
-            
-    name2new = {}
-    for k,v in name2old.items():
-        name2new[k] = old2new.get(v, -1)
-    
-    return name2new
-
-name2new = get_name2new()
-
 BANDS = ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12')
 
 BAND_STATS = {
@@ -73,38 +56,6 @@ BAND_STATS = {
 
 # --
 # Helpers
-
-def bilinear_upsample(x, n=120):
-    dtype = x.dtype
-    assert len(x.shape) == 2
-    if (x.shape[0] == n) and (x.shape[1] == n):
-        return x
-    else:
-        x = x.astype(np.float)
-        x = Image.fromarray(x)
-        x = x.resize((n, n), Image.BILINEAR)
-        x = np.array(x)
-        x = x.astype(dtype)
-        return x
-
-
-def load_patch(patch_dir):
-    patch_name = os.path.basename(patch_dir)
-    patch      = [tiffread(os.path.join(patch_dir, f'{patch_name}_{band}.tif')) for band in BANDS]
-    patch      = np.stack([bilinear_upsample(xx) for xx in patch])
-    return patch
-
-
-def load_labels(patch_dir):
-    patch_name = os.path.basename(patch_dir)
-    meta       = json.load(open(os.path.join(patch_dir, patch_name + '_labels_metadata.json')))
-    labels     = [name2new[l] for l in meta['labels']]
-    labels     = [l for l in labels if l != -1]
-    
-    out = torch.zeros(19)
-    out[labels] = 1
-    return out
-
 
 def drop_channels(x, p=0.2, **kwargs):
     sel = np.random.uniform(0, 1, x.shape[-1]) < p
