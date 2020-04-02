@@ -14,36 +14,33 @@ from datasets import Dataset
 from costs import loss_xent
 
 
-def _train(model, optim_inf, scheduler_inf, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, log_dir, device):
-    '''
-    Training loop for optimizing encoder
-    '''
-    # If mixed precision is on, will add the necessary hooks into the model
-    # and optimizer for half() conversions
+def _train(model, optim_inf, scheduler_inf, checkpointer, epochs, train_loader, test_loader, stat_tracker, log_dir, device):
+    
+    
     model, optim_inf = mixed_precision.initialize(model, optim_inf)
-    optim_raw = mixed_precision.get_optimizer(optim_inf)
-    # get target LR for LR warmup -- assume same LR for all param groups
-    for pg in optim_raw.param_groups:
-        lr_real = pg['lr']
+    optim_raw        = mixed_precision.get_optimizer(optim_inf)
+    
+    for p in optim_raw.param_groups:
+        lr_real = p['lr']
 
-    # IDK, maybe this helps?
+    
     torch.cuda.empty_cache()
 
-    # prepare checkpoint and stats accumulator
+    
     next_epoch, total_updates = checkpointer.get_current_position()
     fast_stats = AverageMeterSet()
-    # run main training loop
+    
     for epoch in range(next_epoch, epochs):
-        epoch_stats = AverageMeterSet()
+        epoch_stats   = AverageMeterSet()
         epoch_updates = 0
-        time_start = time.time()
+        time_start    = time.time()
 
         for _, ((images1, images2), labels) in enumerate(train_loader):
-            # get data and info about this minibatch
-            labels = torch.cat([labels, labels]).to(device)
+            
+            labels  = torch.cat([labels, labels]).to(device)
             images1 = images1.to(device)
             images2 = images2.to(device)
+            
             # run forward pass through model to get global and local features
             res_dict = model(x1=images1, x2=images2, class_only=False)
             lgt_glb_mlp, lgt_glb_lin = res_dict['class']
@@ -116,24 +113,19 @@ def _train(model, optim_inf, scheduler_inf, checkpointer, epochs,
         checkpointer.update(epoch + 1, total_updates)
 
 
-def train_self_supervised(model, learning_rate, dataset, train_loader,
-                          test_loader, stat_tracker, checkpointer, log_dir, device):
-    # configure optimizer
-    mods_inf = [m for m in model.info_modules]
-    mods_cls = [m for m in model.class_modules]
+def train_self_supervised(model, learning_rate, dataset, train_loader, test_loader, stat_tracker, checkpointer, log_dir, device):
+    mods_inf    = [m for m in model.info_modules]
+    mods_cls    = [m for m in model.class_modules]
     mods_to_opt = mods_inf + mods_cls
+    
     optimizer = optim.Adam(
         [{'params': mod.parameters(), 'lr': learning_rate} for mod in mods_to_opt],
-        betas=(0.8, 0.999), weight_decay=1e-5, eps=1e-8)
-    # configure learning rate schedulers for the optimizers
-    if dataset in [Dataset.C10, Dataset.C100, Dataset.STL10]:
-        scheduler = MultiStepLR(optimizer, milestones=[250, 280], gamma=0.2)
-        epochs = 300
-    else:
-        # best imagenet results use longer schedules...
-        # -- e.g., milestones=[60, 90], epochs=100
-        scheduler = MultiStepLR(optimizer, milestones=[30, 45], gamma=0.2)
-        epochs = 50
-    # train the model
-    _train(model, optimizer, scheduler, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, log_dir, device)
+        betas=(0.8, 0.999),
+        weight_decay=1e-5, 
+        eps=1e-8
+    )
+    
+    scheduler = MultiStepLR(optimizer, milestones=[30, 45], gamma=0.2)
+    epochs    = 50
+    
+    _train(model, optimizer, scheduler, checkpointer, epochs, train_loader, test_loader, stat_tracker, log_dir, device)

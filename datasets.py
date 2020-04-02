@@ -6,17 +6,17 @@ import numpy as np
 import torch
 from torchvision import datasets, transforms
 
+from ben_dataset import BigEarthNet
 
 INTERP = 3
 
-
 class Dataset(Enum):
-    C10 = 1
-    C100 = 2
-    STL10 = 3
-    IN128 = 4
+    C10       = 1
+    C100      = 2
+    STL10     = 3
+    IN128     = 4
     PLACES205 = 5
-
+    BEN       = 6
 
 def get_encoder_size(dataset):
     if dataset in [Dataset.C10, Dataset.C100]:
@@ -25,6 +25,8 @@ def get_encoder_size(dataset):
         return 64
     if dataset in [Dataset.IN128, Dataset.PLACES205]:
         return 128
+    if dataset == Dataset.BEN:
+        return 32
     raise RuntimeError("Couldn't get encoder size, unknown dataset: {}".format(dataset))
 
 
@@ -160,22 +162,18 @@ class TransformsSTL10:
 
 
 class TransformsImageNet128:
-    '''
-    ImageNet dataset, for use with 128x128 full image encoder.
-    '''
     def __init__(self):
         # image augmentation functions
+        
         self.flip_lr = transforms.RandomHorizontalFlip(p=0.5)
-        rand_crop = \
-            transforms.RandomResizedCrop(128, scale=(0.3, 1.0), ratio=(0.7, 1.4),
-                                         interpolation=INTERP)
-        col_jitter = transforms.RandomApply([
-            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8)
-        rnd_gray = transforms.RandomGrayscale(p=0.25)
+        
+        rand_crop  = transforms.RandomResizedCrop(128, scale=(0.3, 1.0), ratio=(0.7, 1.4), interpolation=INTERP)
+        col_jitter = transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8)
+        rnd_gray   = transforms.RandomGrayscale(p=0.25)
+        
         post_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         self.test_transform = transforms.Compose([
             transforms.Resize(146, interpolation=INTERP),
@@ -188,97 +186,102 @@ class TransformsImageNet128:
             rnd_gray,
             post_transform
         ])
-
+        
     def __call__(self, inp):
-        inp = self.flip_lr(inp)
+        inp  = self.flip_lr(inp)
         out1 = self.train_transform(inp)
         out2 = self.train_transform(inp)
         return out1, out2
 
 
-def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False):
 
-    train_dir, val_dir = _get_directories(dataset, input_dir)
+def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_workers=16):
+
+    train_dir, valid_dir = _get_directories(dataset, input_dir)
 
     if dataset == Dataset.C10:
         num_classes = 10
+        
         train_transform = TransformsC10()
-        test_transform = train_transform.test_transform
-        train_dataset = datasets.CIFAR10(root='/tmp/data/',
-                                         train=True,
-                                         transform=train_transform,
-                                         download=True)
-        test_dataset = datasets.CIFAR10(root='/tmp/data/',
-                                        train=False,
-                                        transform=test_transform,
-                                        download=True)
+        test_transform  = train_transform.test_transform
+        
+        train_dataset = datasets.CIFAR10(root='/tmp/data/', train=True, transform=train_transform, download=True)
+        valid_dataset = datasets.CIFAR10(root='/tmp/data/', train=False, transform=test_transform, download=True)
+        
     elif dataset == Dataset.C100:
         num_classes = 100
+        
         train_transform = TransformsC10()
-        test_transform = train_transform.test_transform
-        train_dataset = datasets.CIFAR100(root='/tmp/data/',
-                                          train=True,
-                                          transform=train_transform,
-                                          download=True)
-        test_dataset = datasets.CIFAR100(root='/tmp/data/',
-                                         train=False,
-                                         transform=test_transform,
-                                         download=True)
+        test_transform  = train_transform.test_transform
+        
+        train_dataset  = datasets.CIFAR100(root='/tmp/data/', train=True, transform=train_transform, download=True)
+        valid_dataset  = datasets.CIFAR100(root='/tmp/data/', train=False, transform=test_transform, download=True)
+        
     elif dataset == Dataset.STL10:
         num_classes = 10
+        
         train_transform = TransformsSTL10()
-        test_transform = train_transform.test_transform
-        train_split = 'train' if labeled_only else 'train+unlabeled'
-        train_dataset = datasets.STL10(root='/tmp/data/',
-                                       split=train_split,
-                                       transform=train_transform,
-                                       download=True)
-        test_dataset = datasets.STL10(root='/tmp/data/',
-                                      split='test',
-                                      transform=test_transform,
-                                      download=True)
+        test_transform  = train_transform.test_transform
+        
+        train_split   = 'train' if labeled_only else 'train+unlabeled'
+        train_dataset = datasets.STL10(root='/tmp/data/', split=train_split, transform=train_transform, download=True)
+        valid_dataset = datasets.STL10(root='/tmp/data/', split='test', transform=test_transform, download=True)
+        
     elif dataset == Dataset.IN128:
         num_classes = 1000
+        
         train_transform = TransformsImageNet128()
-        test_transform = train_transform.test_transform
-        train_dataset = datasets.ImageFolder(train_dir, train_transform)
-        test_dataset = datasets.ImageFolder(val_dir, test_transform)
+        test_transform  = train_transform.test_transform
+        
+        train_dataset   = datasets.ImageFolder(train_dir, train_transform)
+        valid_dataset   = datasets.ImageFolder(valid_dir, test_transform)
+        
     elif dataset == Dataset.PLACES205:
         num_classes = 1000
+        
         train_transform = TransformsImageNet128()
-        test_transform = train_transform.test_transform
-        train_dataset = datasets.ImageFolder(train_dir, train_transform)
-        test_dataset = datasets.ImageFolder(val_dir, test_transform)
+        test_transform  = train_transform.test_transform
+        
+        train_dataset   = datasets.ImageFolder(train_dir, train_transform)
+        valid_dataset   = datasets.ImageFolder(valid_dir, test_transform)
+    
+    elif dataset == Dataset.BEN:
+        num_classes = 19
+        
+        train_dataset = BigEarthNet(split='train')
+        valid_dataset = BigEarthNet(split='valid')
+        
 
     # build pytorch dataloaders for the datasets
-    train_loader = \
-        torch.utils.data.DataLoader(dataset=train_dataset,
-                                    batch_size=batch_size,
-                                    shuffle=True,
-                                    pin_memory=True,
-                                    drop_last=True,
-                                    num_workers=16)
-    test_loader = \
-        torch.utils.data.DataLoader(dataset=test_dataset,
-                                    batch_size=batch_size,
-                                    shuffle=True,
-                                    pin_memory=True,
-                                    drop_last=True,
-                                    num_workers=16)
+    
+    dataloader_kwargs = {
+        "batch_size"  : batch_size,
+        "shuffle"     : True,
+        "pin_memory"  : True,
+        "drop_last"   : True,
+        "num_workers" : num_workers,
+    }
+    
+    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, **dataloader_kwargs)
+    valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, **dataloader_kwargs)
 
-    return train_loader, test_loader, num_classes
+    return train_loader, valid_loader, num_classes
 
 
 def _get_directories(dataset, input_dir):
-    if dataset in [Dataset.C10, Dataset.C100, Dataset.STL10]:
-        # Pytorch will download those datasets automatically
-        return None, None
-    if dataset == Dataset.IN128:
+    if dataset in [Dataset.C10, Dataset.C100, Dataset.STL10, Dataset.BEN]:
+        train_dir = None
+        valid_dir = None
+    
+    elif dataset == Dataset.IN128:
         train_dir = os.path.join(input_dir, 'ILSVRC2012_img_train/')
-        val_dir = os.path.join(input_dir, 'ILSVRC2012_img_val/')
+        valid_dir = os.path.join(input_dir, 'ILSVRC2012_img_val/')
+    
     elif dataset == Dataset.PLACES205:
         train_dir = os.path.join(input_dir, 'places205_256_train/')
-        val_dir = os.path.join(input_dir, 'places205_256_val/')
+        valid_dir = os.path.join(input_dir, 'places205_256_val/')
+    
     else:
         raise 'Data directories for dataset ' + dataset + ' are not defined'
-    return train_dir, val_dir
+    
+    return train_dir, valid_dir
