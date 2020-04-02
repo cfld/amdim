@@ -249,19 +249,26 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         train_dataset = BigEarthNet(split='train', root=input_dir)
         valid_dataset = BigEarthNet(split='val', root=input_dir)
         num_classes   = train_dataset.num_classes
-
-    # build pytorch dataloaders for the datasets
     
     dataloader_kwargs = {
-        "batch_size"  : batch_size,
         "shuffle"     : True,
         "pin_memory"  : True,
-        "drop_last"   : True,
         "num_workers" : num_workers,
     }
     
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, **dataloader_kwargs)
-    valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, **dataloader_kwargs)
+    train_loader = torch.utils.data.DataLoader(
+        dataset    = train_dataset,
+        batch_size = batch_size,
+        drop_last  = True, 
+        **dataloader_kwargs
+    )
+    
+    valid_loader = torch.utils.data.DataLoader(
+        dataset    = valid_dataset, 
+        batch_size = 2 * batch_size, 
+        drop_last  = False, 
+        **dataloader_kwargs
+    )
 
     return train_loader, valid_loader, num_classes
 

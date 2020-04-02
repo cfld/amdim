@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 import json
 import random
 import argparse
@@ -12,6 +13,7 @@ import numpy as np
 from time import time
 from tqdm import tqdm
 from sklearn import metrics
+from tensorboardX import SummaryWriter
 
 import torch
 from torch import nn
@@ -31,30 +33,32 @@ from joblib import Parallel, delayed
 # --
 # Helpers
 
-def _cv_score(X, y):
-    if (y == 0).all():
-        return np.zeros(*y.shape)
-    elif (y == 1).all():
-        return np.ones(*y.shape)
-    else:
-        try:
-            cv = StratifiedKFold(n_splits=2, shuffle=True)
-            return cross_val_predict(LinearSVC(), X, y, cv=cv)
-        except:
-            return np.zeros(*y.shape) + (y.mean() > 0.5)
-
-
-def cv_score(X, y):
-    jobs  = [delayed(_cv_score)(X, y[:,i]) for i in range(y.shape[1])]
-    preds = Parallel(backend='multiprocessing', n_jobs=20)(jobs)
-    preds = np.row_stack(preds)
-    return metrics.f1_score(y.ravel(), preds.ravel())
-
 def to_numpy(x):
     return x.detach().cpu().numpy()
 
-def test_model(model, test_loader, device, max_evals=200000):
-    t = time()
+def cov(x, y):
+    z = x.copy()
+    z[y == 0] = np.inf
+    min_pos = z.min(axis=-1, keepdims=True)
+    return (x >= min_pos).sum(axis=-1).mean()
+
+def sample_f1(x, y):
+    tp = (x != 0) & (y != 0)
+    p  = np.mean(tp.sum(axis=-1) / (x.sum(axis=-1) + 1e-10))
+    r  = np.mean(tp.sum(axis=-1) / (y.sum(axis=-1) + 1e-10))
+    return 2 * (p * r) / (p + r)
+
+def one_error(x, y):
+    return 1 - y[(np.arange(y.shape[0]), np.argmax(x, axis=-1))].mean()
+
+def compute_metrics(x, y):
+    return {
+        "oe"  : one_error(x, y),
+        "f1"  : sample_f1(x > 0, y),
+        "cov" : cov(x, y),
+    }
+
+def dump_feats(model, test_loader, device):
     _warmup_batchnorm(model, test_loader, device, batches=50, train_loader=False)
     
     _ = model.eval()
@@ -78,10 +82,6 @@ def test_model(model, test_loader, device, max_evals=200000):
             all_lin_out.append(to_numpy(lin_out))
             all_labels.append(to_numpy(labels))
             all_feats.append(to_numpy(feats))
-        
-        n_seen += labels.shape[0]
-        if n_seen > max_evals:
-            break
     
     _ = model.train()
     
@@ -90,13 +90,10 @@ def test_model(model, test_loader, device, max_evals=200000):
     all_labels  = np.row_stack(all_labels)
     all_feats   = np.row_stack(all_feats)
     
-    return {
-        "mlp_auc" : metrics.roc_auc_score(all_labels.ravel(), all_mlp_out.ravel()),
-        "lin_auc" : metrics.roc_auc_score(all_labels.ravel(), all_lin_out.ravel()),
-        "f1"      : cv_score(all_feats, all_labels),
-        "elapsed" : time() - t
-    }
+    return all_mlp_out, all_lin_out, all_labels, all_feats
 
+# --
+# CLI
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -118,17 +115,15 @@ def parse_args():
     parser.add_argument('--n_depth', type=int, default=3)
     parser.add_argument('--use_bn',  type=int, default=0)
     
-    # parameters for output, logging, checkpointing, etc
-    parser.add_argument('--output_dir', type=str, default='./runs')
-    parser.add_argument('--cpt_load_path', type=str, default=None)
-    parser.add_argument('--cpt_name', type=str, default='amdim_cpt.pth')
-    parser.add_argument('--run_name', type=str, default='default_run')
+    parser.add_argument('--output_dir', type=str, default='runs')
+    parser.add_argument('--run_name',   type=str, default='run0')
     
     return parser.parse_args()
 
 args = parse_args()
 
 # if args.amp: mixed_precision.enable_mixed_precision()
+os.makedirs(os.path.join(args.output_dir, args.run_name), exist_ok=True)
 
 _ = random.seed(args.seed)
 _ = np.random.seed(args.seed + 1)
@@ -197,6 +192,8 @@ for p in optim_raw.param_groups:
 
 _ = torch.cuda.empty_cache()
 
+writer = SummaryWriter(logdir=os.path.join(os.path.join(args.output_dir, args.run_name), 'logs'))
+
 t = time()
 step_counter = 0
 for epoch_idx in range(epochs):
@@ -220,34 +217,30 @@ for epoch_idx in range(epochs):
         # --
         # Log
         
-        def cov(x, y):
-            x_masked = x.clone()
-            x_masked[(1 - y).bool()] = float('inf')
-            min_score = x_masked.min(axis=-1, keepdims=True).values
-            return x.gt(min_score).sum(axis=-1).float().mean()
-        
-        mlp_cov = cov(lgt_glb_mlp, y)
-        lin_cov = cov(lgt_glb_lin, y)
-        
-        # y_flat  = y.cpu().numpy().ravel()
-        # mlp_auc = metrics.roc_auc_score(y_flat, lgt_glb_mlp.data.cpu().numpy().ravel())
-        # lin_auc = metrics.roc_auc_score(y_flat, lgt_glb_lin.data.cpu().numpy().ravel())
-        
-        print(json.dumps({
+        log = {
             'epoch_idx'    : int(epoch_idx),
             'batch_idx'    : int(batch_idx),
             'loss_inf'     : float(loss_inf),
             'loss_cls'     : float(loss_cls),
-            # 'loss_g2l'     : float(loss_g2l),
-            # 'lgt_reg'      : float(res_dict['lgt_reg']),
-            # 'loss_g2l_1t5' : float(res_dict['g2l_1t5']),
-            # 'loss_g2l_1t7' : float(res_dict['g2l_1t7']),
-            # 'loss_g2l_5t5' : float(res_dict['g2l_5t5']),
-            'mlp_cov'      : float(mlp_cov),
-            'lin_cov'      : float(lin_cov),
+            'mlp_metrics'  : compute_metrics(to_numpy(lgt_glb_mlp), to_numpy(y)),
+            'lin_metrics'  : compute_metrics(to_numpy(lgt_glb_lin), to_numpy(y)),
             'elapsed'      : time() - t,
-        }))
+        }
+        print(json.dumps(log))
         sys.stdout.flush()
+        
+        writer.add_scalar('loss_inf', log['loss_inf'], step_counter)
+        writer.add_scalar('loss_cls', log['loss_cls'], step_counter)
+        
+        writer.add_scalar('mlp_oe',  log['mlp_metrics']['oe'], step_counter)
+        writer.add_scalar('mlp_f1',  log['mlp_metrics']['f1'], step_counter)
+        writer.add_scalar('mlp_cov', log['mlp_metrics']['cov'], step_counter)
+        
+        writer.add_scalar('lin_oe',  log['lin_metrics']['oe'], step_counter)
+        writer.add_scalar('lin_f1',  log['lin_metrics']['f1'], step_counter)
+        writer.add_scalar('lin_cov', log['lin_metrics']['cov'], step_counter)
+
+        writer.flush()
         
         # --
         # Step
@@ -268,8 +261,13 @@ for epoch_idx in range(epochs):
         #     test_scores = test_model(model, test_loader, device, max_evals=args.batch_size * 512)
         #     print(json.dumps(test_scores))
     
-    scheduler.step(epoch)
-    test_model(model, test_loader, device, max_evals=500000)
+    scheduler.step(epoch_idx)
+    
+    mlp_out, lin_out, labels, feats = dump_feats(model, test_loader, device)
+    np.save(os.path.join(args.output_dir, args.run_name, 'mlp_out.npy'), mlp_out)
+    np.save(os.path.join(args.output_dir, args.run_name, 'lin_out.npy'), lin_out)
+    np.save(os.path.join(args.output_dir, args.run_name, 'labels.npy'), labels)
+    np.save(os.path.join(args.output_dir, args.run_name, 'feats.npy'), feats)
 
 
 
