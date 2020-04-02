@@ -1,3 +1,4 @@
+import sys
 import math
 import numpy as np
 import torch
@@ -23,7 +24,7 @@ class Encoder(nn.Module):
         self.dim2layer = None
 
         # encoding block for local features
-        print('Using a {}x{} encoder'.format(encoder_size, encoder_size))
+        print('Using a {}x{} encoder'.format(encoder_size, encoder_size), file=sys.stderr)
         if encoder_size == 32:
             self.layer_list = nn.ModuleList([
                 Conv3x3(num_channels, ndf, 3, 1, 0, False),
@@ -231,7 +232,7 @@ class Model(nn.Module):
         self.class_modules = [self.evaluator]
         return self.evaluator
 
-    def forward(self, x1, x2, class_only=False):
+    def forward(self, x1, x2=None, class_only=False):
         '''
         Input:
           x1 : images from which to extract features -- x1 ~ A(x)
@@ -347,19 +348,19 @@ class Conv3x3(nn.Module):
 
 class MLPClassifier(nn.Module):
     def __init__(self, n_input, n_classes, n_hidden=512, p=0.1):
-        super(MLPClassifier, self).__init__()
-        self.n_input = n_input
+        super().__init__()
+        
+        self.n_input   = n_input
         self.n_classes = n_classes
-        self.n_hidden = n_hidden
+        self.n_hidden  = n_hidden
+        
         if n_hidden is None:
-            # use linear classifier
             self.block_forward = nn.Sequential(
                 Flatten(),
                 nn.Dropout(p=p),
                 nn.Linear(n_input, n_classes, bias=True)
             )
         else:
-            # use simple MLP classifier
             self.block_forward = nn.Sequential(
                 Flatten(),
                 nn.Dropout(p=p),
@@ -371,8 +372,7 @@ class MLPClassifier(nn.Module):
             )
 
     def forward(self, x):
-        logits = self.block_forward(x)
-        return logits
+        return self.block_forward(x)
 
 class FakeRKHSConvNet(nn.Module):
     def __init__(self, n_input, n_output, use_bn=False):

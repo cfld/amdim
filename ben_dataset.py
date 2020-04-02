@@ -63,7 +63,7 @@ def drop_channels(x, p=0.2, **kwargs):
         return x
 
 
-class AugmentBEN:
+class BENTransformTrain:
     def __init__(self):
         
         self.train_transform = ACompose([
@@ -75,7 +75,7 @@ class AugmentBEN:
             # {jitter color, random greyscale}
         ])
         
-        self.valid_transform = transforms.Compose([
+        self.post_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
         ])
@@ -84,10 +84,27 @@ class AugmentBEN:
         a = self.train_transform(image=inp)['image']
         b = self.train_transform(image=inp)['image']
         
-        a = self.valid_transform(a)
-        b = self.valid_transform(b)
+        a = self.post_transform(a)
+        b = self.post_transform(b)
         
         return a, b
+
+
+class BENTransformValid:
+    def __init__(self):
+        self.transform = ACompose([
+            atransforms.Resize(128, 128, interpolation=3)
+        ])
+        
+        self.post_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
+        ])
+    
+    def __call__(self, inp):
+        a = self.transform(image=inp)['image']
+        a = self.post_transform(a)
+        return a
 
 
 class BigEarthNet(Dataset):
@@ -101,11 +118,10 @@ class BigEarthNet(Dataset):
         self.labels      = pickle.load(open('data/labels_ben_19.pkl', 'rb'))
         self.num_classes = len(np.unique(np.hstack(list(self.labels.values()))))
         
-        transform = AugmentBEN()
         if split == 'train':
-            self.transform = transform
+            self.transform = BENTransformTrain()
         elif split in ['val', 'test']:
-            self.transform = transform.valid_transform
+            self.transform = BENTransformValid()
         else:
             raise Exception
     

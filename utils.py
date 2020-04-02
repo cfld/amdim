@@ -12,13 +12,13 @@ def test_model(model, test_loader, device, stats, max_evals=200000):
     '''
     # warm up batchnorm stats based on current model
     _warmup_batchnorm(model, test_loader, device, batches=50, train_loader=False)
-
+    
     def get_correct_count(lgt_vals, lab_vals):
         # count how many predictions match the target labels
         max_lgt = torch.max(lgt_vals.cpu().data, 1)[1]
         num_correct = (max_lgt == lab_vals).sum().item()
         return num_correct
-
+        
     # evaluate model on test_loader
     model.eval()
     correct_glb_mlp = 0.
