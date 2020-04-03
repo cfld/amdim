@@ -133,7 +133,7 @@ def parse_args():
     parser.add_argument('--input_dir', type=str, default='/raid/users/bjohnson/projects/benet/data/bigearthnet_patches/')
     
     # parameters for general training stuff
-    parser.add_argument('--batch_size',    type=int,   default=192)
+    parser.add_argument('--batch_size',    type=int,   default=128)
     parser.add_argument('--learning_rate', type=float, default=0.0002)
     parser.add_argument('--eval_interval', type=int,   default=500)
     parser.add_argument('--seed',          type=int,   default=1)
