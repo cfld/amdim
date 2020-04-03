@@ -58,6 +58,38 @@ def compute_metrics(x, y):
         "cov" : cov(x, y),
     }
 
+
+def do_eval(model, test_loader, device):
+    all_mlp_out = []
+    all_lin_out = []
+    all_labels  = []
+    
+    counter = 0
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.cpu()
+        with torch.no_grad():
+            res_dict = model(x1=images, class_only=True)
+            mlp_out, lin_out = res_dict['class']
+            
+            all_mlp_out.append(to_numpy(mlp_out))
+            all_lin_out.append(to_numpy(lin_out))
+            all_labels.append(to_numpy(labels))
+        
+        counter += 1
+        if counter >= 10:
+            break
+    
+    all_mlp_out = np.row_stack(all_mlp_out)
+    all_lin_out = np.row_stack(all_lin_out)
+    all_labels  = np.row_stack(all_labels)
+    
+    return {
+        "mlp_metrics" : compute_metrics(all_mlp_out, all_labels),
+        "lin_metrics" : compute_metrics(all_lin_out, all_labels),
+    }
+
+
 def dump_feats(model, test_loader, device):
     _warmup_batchnorm(model, test_loader, device, batches=50, train_loader=False)
     
@@ -109,7 +141,7 @@ def parse_args():
     
     # parameters for model and training objective
     parser.add_argument('--classifiers', action='store_true')
-    parser.add_argument('--ndf',     type=int, default=128)
+    parser.add_argument('--ndf',     type=int, default=192)
     parser.add_argument('--n_rkhs',  type=int, default=1024)
     parser.add_argument('--tclip',   type=float, default=20.0)
     parser.add_argument('--n_depth', type=int, default=3)
@@ -178,7 +210,7 @@ optim_inf = torch.optim.Adam(
     eps=1e-8
 )
 
-scheduler = MultiStepLR(optim_inf, milestones=[30, 45], gamma=0.2)
+scheduler = MultiStepLR(optim_inf, milestones=[10, 20], gamma=0.2)
 epochs    = 50
 
 model, optim_inf = mixed_precision.initialize(model, optim_inf)
@@ -202,7 +234,7 @@ for epoch_idx in range(epochs):
         # --
         # Forward
         
-        y = torch.cat([y, y]).to(device)
+        y  = torch.cat([y, y]).to(device)
         x1 = x1.to(device)
         x2 = x2.to(device)
         
@@ -239,7 +271,18 @@ for epoch_idx in range(epochs):
         writer.add_scalar('lin_oe',  log['lin_metrics']['oe'], step_counter)
         writer.add_scalar('lin_f1',  log['lin_metrics']['f1'], step_counter)
         writer.add_scalar('lin_cov', log['lin_metrics']['cov'], step_counter)
-
+        
+        if step_counter % 10 == 0:
+            valid_log = do_eval(model, test_loader, device)
+            
+            writer.add_scalar('val_mlp_oe',  valid_log['mlp_metrics']['oe'], step_counter)
+            writer.add_scalar('val_mlp_f1',  valid_log['mlp_metrics']['f1'], step_counter)
+            writer.add_scalar('val_mlp_cov', valid_log['mlp_metrics']['cov'], step_counter)
+            
+            writer.add_scalar('val_lin_oe',  valid_log['lin_metrics']['oe'], step_counter)
+            writer.add_scalar('val_lin_f1',  valid_log['lin_metrics']['f1'], step_counter)
+            writer.add_scalar('val_lin_cov', valid_log['lin_metrics']['cov'], step_counter)
+        
         writer.flush()
         
         # --
@@ -264,10 +307,10 @@ for epoch_idx in range(epochs):
     scheduler.step(epoch_idx)
     
     mlp_out, lin_out, labels, feats = dump_feats(model, test_loader, device)
-    np.save(os.path.join(args.output_dir, args.run_name, 'mlp_out.npy'), mlp_out)
-    np.save(os.path.join(args.output_dir, args.run_name, 'lin_out.npy'), lin_out)
-    np.save(os.path.join(args.output_dir, args.run_name, 'labels.npy'), labels)
-    np.save(os.path.join(args.output_dir, args.run_name, 'feats.npy'), feats)
+    np.save(os.path.join(args.output_dir, args.run_name, f'mlp_out.{epoch_idx}.npy'), mlp_out)
+    np.save(os.path.join(args.output_dir, args.run_name, f'lin_out.{epoch_idx}.npy'), lin_out)
+    np.save(os.path.join(args.output_dir, args.run_name, f'labels.{epoch_idx}.npy'), labels)
+    np.save(os.path.join(args.output_dir, args.run_name, f'feats.{epoch_idx}.npy'), feats)
 
 
 

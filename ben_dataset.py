@@ -72,10 +72,12 @@ class BENTransformTrain:
             atransforms.ShiftScaleRotate(p=1.0),
             atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
             
-            atransforms.RandomBrightness(p=0.5),
-            atransforms.GridDistortion(num_steps=3),  # !! Maybe too much noise?
-            atransforms.Lambda(drop_channels, p=0.5), # !! Maybe too much noise?
-            # ?? jitter color
+            # Medium aggressive augmentation
+            atransforms.GridDistortion(num_steps=5, p=0.5),     # !! Maybe too much noise?
+            
+            # More aggressive augmentation
+            # atransforms.RandomBrightness(p=0.5),             # !! Maybe too much noise?
+            # atransforms.Lambda(drop_channels, p=0.5),        # !! Maybe too much noise?
         ])
         
         self.post_transform = transforms.Compose([
@@ -111,12 +113,14 @@ class BENTransformValid:
 
 
 class BigEarthNet(Dataset):
-    def __init__(self, split, root):
+    def __init__(self, split, root, preshuffle=True):
         self.root        = root
         self.split       = split
         
         self.patch_names = open(f'data/ben_splits/{split}.csv').read().splitlines()
-        self.patch_names = np.random.permutation(self.patch_names)
+        
+        if preshuffle:
+            self.patch_names = np.random.permutation(self.patch_names)
         
         self.labels      = pickle.load(open('data/labels_ben_19.pkl', 'rb'))
         self.num_classes = len(np.unique(np.hstack(list(self.labels.values()))))

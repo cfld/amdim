@@ -25,3 +25,4 @@ pip install -r requirements.txt
 
 # --
 
+CUDA_VISIBLE_DEVICES=5,6 python ben_train.py | tee tmp3.jl

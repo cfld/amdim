@@ -246,12 +246,11 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         valid_dataset   = datasets.ImageFolder(valid_dir, test_transform)
     
     elif dataset == Dataset.BEN:
-        train_dataset = BigEarthNet(split='train', root=input_dir)
-        valid_dataset = BigEarthNet(split='val', root=input_dir)
+        train_dataset = BigEarthNet(split='train', root=input_dir, preshuffle=True)
+        valid_dataset = BigEarthNet(split='val', root=input_dir, preshuffle=False)
         num_classes   = train_dataset.num_classes
     
     dataloader_kwargs = {
-        "shuffle"     : True,
         "pin_memory"  : True,
         "num_workers" : num_workers,
     }
@@ -260,6 +259,7 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         dataset    = train_dataset,
         batch_size = batch_size,
         drop_last  = True, 
+        shuffle    = True,
         **dataloader_kwargs
     )
     
@@ -267,6 +267,7 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         dataset    = valid_dataset, 
         batch_size = 2 * batch_size, 
         drop_last  = False, 
+        shuffle    = False,
         **dataloader_kwargs
     )
 
