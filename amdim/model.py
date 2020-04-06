@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from mixed_precision import maybe_half
-from utils import flatten, random_locs_2d, Flatten
-from costs import LossMultiNCE
+from amdim.mixed_precision import maybe_half
+from amdim.utils import flatten, random_locs_2d, Flatten
+from amdim.costs import LossMultiNCE
 
 
 def has_many_gpus():
