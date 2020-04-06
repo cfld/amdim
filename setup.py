@@ -1,9 +1,8 @@
 #!/usr/bin/env/python
 
-import exline
 from setuptools import setup, find_packages
 
-VERSION = exline.__version__
+VERSION = '0.0'
 
 setup(
     name='amdim',
