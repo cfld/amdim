@@ -1,8 +1,9 @@
 #!/usr/bin/env/python
 
+import exline
 from setuptools import setup, find_packages
 
-VERSION = '0.0'
+VERSION = exline.__version__
 
 setup(
     name='amdim',
@@ -11,7 +12,7 @@ setup(
     classifiers=[],
     description='amdim',
     keywords=['amdim'],
-    license='ALV2',
+    license='MIT',
     packages=find_packages(),
     version=VERSION
 )
