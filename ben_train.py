@@ -192,6 +192,8 @@ model = Model(
     use_bn       = (args.use_bn == 1)
 )
 
+torch.save(model.state_dict(), 'tmp.pth')
+
 model.init_weights(init_scale=1.0)
 
 model = model.to(device)

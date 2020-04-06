@@ -14,7 +14,7 @@ def has_many_gpus():
     return torch.cuda.device_count() >= 6
 
 class Encoder(nn.Module):
-    def __init__(self, dummy_batch, num_channels=3, ndf=64, n_rkhs=512,  n_depth=3, encoder_size=32, use_bn=False):
+    def __init__(self, dummy_batch, num_channels=3, ndf=64, n_rkhs=512, n_depth=3, encoder_size=32, use_bn=False):
         
         super().__init__()
         
@@ -24,7 +24,7 @@ class Encoder(nn.Module):
         self.dim2layer = None
 
         # encoding block for local features
-        print('Using a {}x{} encoder'.format(encoder_size, encoder_size), file=sys.stderr)
+        # print('Using a {}x{} encoder'.format(encoder_size, encoder_size), file=sys.stderr)
         if encoder_size == 32:
             self.layer_list = nn.ModuleList([
                 Conv3x3(num_channels, ndf, 3, 1, 0, False),
