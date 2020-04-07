@@ -132,6 +132,7 @@ class Encoder(nn.Module):
         r1 = self.rkhs_block_1(acts[self.dim2layer[1]])
         r5 = self.rkhs_block_5(acts[self.dim2layer[5]])
         r7 = self.rkhs_block_7(acts[self.dim2layer[7]])
+        
         return r1, r5, r7
 
 
@@ -210,14 +211,18 @@ class Model(nn.Module):
         '''
         if use_eval:
             self.eval()
+        
         x = maybe_half(x)
+        
         if no_grad:
             with torch.no_grad():
                 rkhs_1, rkhs_5, rkhs_7 = self.encoder(x)
         else:
             rkhs_1, rkhs_5, rkhs_7 = self.encoder(x)
+                
         if use_eval:
             self.train()
+        
         return maybe_half(rkhs_1), maybe_half(rkhs_5), maybe_half(rkhs_7)
 
     def reset_evaluator(self, n_classes=None):
@@ -394,13 +399,16 @@ class FakeRKHSConvNet(nn.Module):
                 eye_mask[i, i, 0, 0] = 1
             self.shortcut.weight.data.uniform_(-0.01, 0.01)
             self.shortcut.weight.data.masked_fill_(torch.tensor(eye_mask).bool(), 1.)
+        
         return
 
     def init_weights(self, init_scale=1.):
         # initialize first conv in res branch
         # -- rescale the default init for nn.Conv2d layers
+        
         nn.init.kaiming_uniform_(self.conv1.weight, a=math.sqrt(5))
         self.conv1.weight.data.mul_(init_scale)
+        
         # initialize second conv in res branch
         # -- set to 0, like fixup/zero init
         nn.init.constant_(self.conv2.weight, 0.)
@@ -408,7 +416,7 @@ class FakeRKHSConvNet(nn.Module):
 
     def forward(self, x):
         h_res = self.conv2(self.relu1(self.bn_hid(self.conv1(x))))
-        h = self.bn_out(h_res + self.shortcut(x))
+        h     = self.bn_out(h_res + self.shortcut(x))
         return h
 
 

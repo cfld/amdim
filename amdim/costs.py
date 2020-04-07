@@ -19,15 +19,15 @@ def loss_xent(logits, labels, ignore_index=-1):
     '''
     compute multinomial cross-entropy, for e.g. training a classifier.
     '''
-    xent = F.cross_entropy(tanh_clip(logits, 10.), labels,
-                           ignore_index=ignore_index)
+    xent    = F.cross_entropy(tanh_clip(logits, 10.), labels, ignore_index=ignore_index)
     lgt_reg = 1e-3 * (logits**2.).mean()
     return xent + lgt_reg
 
 
 class NCE_MI_MULTI(nn.Module):
-    def __init__(self, tclip=20.):
-        super(NCE_MI_MULTI, self).__init__()
+    def __init__(self, tclip):
+        super().__init__()
+        
         self.tclip = tclip
 
     def _model_scores(self, r_src, r_trg, mask_mat):
@@ -43,6 +43,7 @@ class NCE_MI_MULTI(nn.Module):
           nce_scores : (n_batch_gpu, n_locs)
           lgt_reg    : scalar
         '''
+        
         n_batch_gpu = mask_mat.size(0)
         n_batch = mask_mat.size(1)
         n_locs = r_trg.size(1) // n_batch
@@ -143,7 +144,7 @@ class LossMultiNCE(nn.Module):
     Input is fixed as r1_x1, r5_x1, r7_x1, r1_x2, r5_x2, r7_x2.
     '''
 
-    def __init__(self, tclip=10.):
+    def __init__(self, tclip):
         super().__init__()
         
         # initialize the dataparallel nce computer (magic!)

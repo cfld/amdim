@@ -26,4 +26,7 @@ pip install -r requirements.txt
 # --
 
 CUDA_VISIBLE_DEVICES=3,4,5,6 python amdim/ben_train.py \
-    --run_name channel_drop | tee channel_drop.jl
+    --batch_size    256    \
+    --learning_rate 0.0002 \
+    --tclip         100    \
+    --run_name orig4_t100 | tee orig4_t100.jl
