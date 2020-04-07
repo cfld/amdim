@@ -184,8 +184,9 @@ class LossMultiNCE(nn.Module):
         rK_x2 are features from source image x2.
         '''
         # compute feature dimensions
+        
         n_batch = int(r1_x1.size(0))
-        n_rkhs = int(r1_x1.size(1))
+        n_rkhs  = int(r1_x1.size(1))
         # make masking matrix to help compute nce costs
         mask_mat = torch.eye(n_batch).cuda()
 
@@ -210,7 +211,7 @@ class LossMultiNCE(nn.Module):
         r7_trg_2 = r7_trg_2.unsqueeze(dim=0).expand(n_gpus, -1, -1)
 
         # we're going to hackishly cut mem use on device cuda:0
-        if n_gpus >= 4:
+        if n_gpus > 4:
             assert (n_batch % (n_gpus - 1) == 0), 'n_batch: {}, n_gpus: {}'.format(n_batch, n_gpus)
             # expand tensors with dummy chunks so cuda:0 can skip compute
             chunk_size = n_batch // (n_gpus - 1)
@@ -231,7 +232,7 @@ class LossMultiNCE(nn.Module):
                           mask_mat, mode='train')
 
         # adjust cost weight to compensate for hacky skip of cuda:0
-        if n_gpus >= 4:
+        if n_gpus > 4:
             rescale = float(n_gpus) / float(n_gpus - 1)
             loss_1t5 = rescale * loss_1t5.mean()
             loss_1t7 = rescale * loss_1t7.mean()

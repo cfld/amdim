@@ -25,4 +25,5 @@ pip install -r requirements.txt
 
 # --
 
-CUDA_VISIBLE_DEVICES=5,6 python ben_train.py | tee tmp3.jl
+CUDA_VISIBLE_DEVICES=3,4,5,6 python amdim/ben_train.py \
+    --run_name channel_drop | tee channel_drop.jl

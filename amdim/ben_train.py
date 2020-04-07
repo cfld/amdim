@@ -192,8 +192,6 @@ model = Model(
     use_bn       = (args.use_bn == 1)
 )
 
-torch.save(model.state_dict(), 'tmp.pth')
-
 model.init_weights(init_scale=1.0)
 
 model = model.to(device)
@@ -313,6 +311,8 @@ for epoch_idx in range(epochs):
     np.save(os.path.join(args.output_dir, args.run_name, f'lin_out.{epoch_idx}.npy'), lin_out)
     np.save(os.path.join(args.output_dir, args.run_name, f'labels.{epoch_idx}.npy'), labels)
     np.save(os.path.join(args.output_dir, args.run_name, f'feats.{epoch_idx}.npy'), feats)
+    
+    torch.save(model.state_dict(), os.path.join(args.output_dir, args.run_name, 'weights.pth'))
 
 
 

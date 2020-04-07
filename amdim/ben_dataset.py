@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torchvision import transforms
 from albumentations import Compose as ACompose
+from albumentations.pytorch.transforms import ToTensor as AToTensor
 from albumentations.augmentations import transforms as atransforms
 
 from torch.utils.data import Dataset
@@ -20,7 +21,7 @@ from torch.utils.data import Dataset
 
 BANDS = ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12')
 
-BAND_STATS = {
+BEN_BAND_STATS = {
     'mean': np.array([
         340.76769064,
         429.9430203,
@@ -54,68 +55,53 @@ BAND_STATS = {
 # --
 # Helpers
 
-def drop_channels(x, **kwargs):
-    sel = np.random.uniform(0, 1, x.shape[-1]) < (2 / len(BANDS))
-    if sel.sum() == 0:
-        return x
-    else:
-        x[...,sel] = BAND_STATS['mean'][sel].reshape(1, 1, -1) # Replace 
-        return x
+def ben_augmentation():
+    # !! Need to do something to change color _probably_
+    return ACompose([
+        atransforms.HorizontalFlip(p=0.5),
+        atransforms.RandomRotate90(p=1.0),
+        atransforms.ShiftScaleRotate(shift_limit=0, scale_limit=0, p=1.0),
+        atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
+        
+        # atransforms.GridDistortion(num_steps=5, p=0.5), # !! Maybe too much noise?
+        
+        atransforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std']),
+        
+        # atransforms.ChannelDropout(channel_drop_range=(1, 2), p=0.5),
+        AToTensor(),
+    ])
+
+
+def ben_valid_augmentation():
+    return ACompose([
+        atransforms.Resize(128, 128, interpolation=3),
+        atransforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std']),
+        AToTensor(),
+    ])
 
 
 class BENTransformTrain:
     def __init__(self):
-        
-        self.train_transform = ACompose([
-            atransforms.HorizontalFlip(p=0.5),
-            atransforms.RandomRotate90(p=1.0),
-            atransforms.ShiftScaleRotate(p=1.0),
-            atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
-            
-            # Medium aggressive augmentation
-            atransforms.GridDistortion(num_steps=5, p=0.5),     # !! Maybe too much noise?
-            
-            # More aggressive augmentation
-            # atransforms.RandomBrightness(p=0.5),             # !! Maybe too much noise?
-            # atransforms.Lambda(drop_channels, p=0.5),        # !! Maybe too much noise?
-        ])
-        
-        self.post_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
-        ])
+        self.train_transform = ben_augmentation()
     
     def __call__(self, inp):
         a = self.train_transform(image=inp)['image']
         b = self.train_transform(image=inp)['image']
-        
-        a = self.post_transform(a)
-        b = self.post_transform(b)
-        
         return a, b
 
 
 class BENTransformValid:
     def __init__(self):
-        self.transform = ACompose([
-            atransforms.Resize(128, 128, interpolation=3)
-        ])
-        
-        self.post_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
-        ])
+        self.transform = ben_valid_augmentation()
     
     def __call__(self, inp):
-        a = self.transform(image=inp)['image']
-        a = self.post_transform(a)
-        return a
+        return self.transform(image=inp)['image']
 
 
 class BigEarthNet(Dataset):
     def __init__(self, split, root, preshuffle=True):
-        self.root        = root
-        self.split       = split
+        self.root  = root
+        self.split = split
         
         self.patch_names = open(f'data/ben_splits/{split}.csv').read().splitlines()
         
@@ -148,7 +134,3 @@ class BigEarthNet(Dataset):
         y[self.labels[patch_name]] = 1
         
         return X, y
-
-# root = '/raid/users/bjohnson/projects/benet/data/bigearthnet_patches/'
-# b = BigEarthNet(split='val', root=root)
-# b[1000]
