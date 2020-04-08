@@ -61,7 +61,7 @@ def ben_augmentation_train():
     return ACompose([
         atransforms.HorizontalFlip(p=0.5),
         atransforms.RandomRotate90(p=1.0),
-        atransforms.ShiftScaleRotate(shift_limit=0, scale_limit=0, p=1.0),
+        atransforms.ShiftScaleRotate(p=1.0),
         atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
         atransforms.Lambda(_normalize),
         AToTensor(),
