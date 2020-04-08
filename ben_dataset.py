@@ -51,65 +51,52 @@ BEN_BAND_STATS = {
     ])
 }
 
+
+def _normalize(x, **kwargs):
+    mean = BEN_BAND_STATS['mean'][None,None]
+    std  = BEN_BAND_STATS['std'][None,None]
+    return (x - mean) / std
+
+def ben_augmentation_train():
+    return ACompose([
+        atransforms.HorizontalFlip(p=0.5),
+        atransforms.RandomRotate90(p=1.0),
+        atransforms.ShiftScaleRotate(shift_limit=0, scale_limit=0, p=1.0),
+        atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
+        atransforms.Lambda(_normalize),
+        AToTensor(),
+    ])
+
+
+def ben_augmentation_valid():
+    return ACompose([
+        atransforms.Resize(128, 128, interpolation=3),
+        atransforms.Lambda(_normalize),
+        AToTensor(),
+    ])
+
+
 # --
 # Helpers
-
-def drop_channels(x, **kwargs):
-    sel = np.random.uniform(0, 1, x.shape[-1]) < (2 / len(BANDS))
-    if sel.sum() == 0:
-        return x
-    else:
-        x[...,sel] = BEN_BAND_STATS['mean'][sel].reshape(1, 1, -1) # Replace 
-        return x
 
 
 class BENTransformTrain:
     def __init__(self):
-        
-        self.train_transform = ACompose([
-            atransforms.HorizontalFlip(p=0.5),
-            atransforms.RandomRotate90(p=1.0),
-            atransforms.ShiftScaleRotate(p=1.0),
-            atransforms.RandomSizedCrop((60, 120), height=128, width=128, interpolation=3),
-            
-            # Medium aggressive augmentation
-            atransforms.GridDistortion(num_steps=5, p=0.5),     # !! Maybe too much noise?
-            
-            # More aggressive augmentation
-            # atransforms.RandomBrightness(p=0.5),             # !! Maybe too much noise?
-            # atransforms.Lambda(drop_channels, p=0.5),        # !! Maybe too much noise?
-        ])
-        
-        self.post_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std'])
-        ])
+        self.transform = ben_augmentation_train()
     
     def __call__(self, inp):
-        a = self.train_transform(image=inp)['image']
-        b = self.train_transform(image=inp)['image']
-        
-        a = self.post_transform(a)
-        b = self.post_transform(b)
-        
-        return a, b
+        return (
+            self.transform(image=inp)['image']
+            self.transform(image=inp)['image']
+        )
 
 
 class BENTransformValid:
     def __init__(self):
-        self.transform = ACompose([
-            atransforms.Resize(128, 128, interpolation=3)
-        ])
-        
-        self.post_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std'])
-        ])
+        self.transform = ben_augmentation_valid()
     
     def __call__(self, inp):
-        a = self.transform(image=inp)['image']
-        a = self.post_transform(a)
-        return a
+        return self.transform(image=inp)['image']
 
 
 class BigEarthNet(Dataset):
