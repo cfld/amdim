@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torchvision import transforms
 from albumentations import Compose as ACompose
+from albumentations.pytorch.transforms import ToTensor as AToTensor
 from albumentations.augmentations import transforms as atransforms
 
 from torch.utils.data import Dataset
@@ -34,7 +35,7 @@ BEN_BAND_STATS = {
         2246.0605464,
         1594.42694882,
         1009.32729131
-    ]),
+    ])[None,None],
     'std': np.array([
         554.81258967,
         572.41639287,
@@ -48,14 +49,13 @@ BEN_BAND_STATS = {
         1302.3292881,
         1079.19066363,
         818.86747235,
-    ])
+    ])[None,None]
 }
 
 
 def _normalize(x, **kwargs):
-    mean = BEN_BAND_STATS['mean'][None,None]
-    std  = BEN_BAND_STATS['std'][None,None]
-    return (x - mean) / std
+    return (x - BEN_BAND_STATS['mean']) / BEN_BAND_STATS['std']
+
 
 def ben_augmentation_train():
     return ACompose([
@@ -86,8 +86,8 @@ class BENTransformTrain:
     
     def __call__(self, inp):
         return (
-            self.transform(image=inp)['image']
-            self.transform(image=inp)['image']
+            self.transform(image=inp)['image'],
+            self.transform(image=inp)['image'],
         )
 
 
