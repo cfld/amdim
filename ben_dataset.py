@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 
 BANDS = ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12')
 
-BAND_STATS = {
+BEN_BAND_STATS = {
     'mean': np.array([
         340.76769064,
         429.9430203,
@@ -59,7 +59,7 @@ def drop_channels(x, **kwargs):
     if sel.sum() == 0:
         return x
     else:
-        x[...,sel] = BAND_STATS['mean'][sel].reshape(1, 1, -1) # Replace 
+        x[...,sel] = BEN_BAND_STATS['mean'][sel].reshape(1, 1, -1) # Replace 
         return x
 
 
@@ -82,7 +82,7 @@ class BENTransformTrain:
         
         self.post_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
+            transforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std'])
         ])
     
     def __call__(self, inp):
@@ -103,7 +103,7 @@ class BENTransformValid:
         
         self.post_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=BAND_STATS['mean'], std=BAND_STATS['std'])
+            transforms.Normalize(mean=BEN_BAND_STATS['mean'], std=BEN_BAND_STATS['std'])
         ])
     
     def __call__(self, inp):

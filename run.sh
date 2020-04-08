@@ -25,4 +25,4 @@ pip install -r requirements.txt
 
 # --
 
-CUDA_VISIBLE_DEVICES=5,6 python ben_train.py | tee tmp3.jl
+CUDA_VISIBLE_DEVICES=3,4,5,6 python ben_train.py --batch_size 256 --run_name runs/rev/rev1 | tee tmp3.jl

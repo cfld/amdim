@@ -1,5 +1,6 @@
 import os
 from enum import Enum
+from tqdm import tqdm
 
 from PIL import Image
 import numpy as np
@@ -250,26 +251,21 @@ def build_dataset(dataset, batch_size, input_dir=None, labeled_only=False, num_w
         valid_dataset = BigEarthNet(split='val', root=input_dir, preshuffle=False)
         num_classes   = train_dataset.num_classes
     
-    dataloader_kwargs = {
-        "pin_memory"  : True,
-        "num_workers" : num_workers,
-    }
-    
     train_loader = torch.utils.data.DataLoader(
-        dataset    = train_dataset,
-        batch_size = batch_size,
-        drop_last  = True, 
-        shuffle    = True,
-        **dataloader_kwargs
+        dataset     = train_dataset,
+        batch_size  = batch_size,
+        drop_last   = True, 
+        shuffle     = True,
+        num_workers = num_workers,
     )
     
-    valid_loader = torch.utils.data.DataLoader(
-        dataset    = valid_dataset, 
-        batch_size = 2 * batch_size, 
-        drop_last  = False, 
-        shuffle    = False,
-        **dataloader_kwargs
-    )
+    valid_loader = list(tqdm(torch.utils.data.DataLoader(
+        dataset     = valid_dataset, 
+        batch_size  = batch_size, 
+        drop_last   = True, 
+        shuffle     = False,
+        num_workers = num_workers,
+    )))
 
     return train_loader, valid_loader, num_classes
 

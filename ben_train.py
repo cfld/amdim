@@ -59,15 +59,19 @@ def compute_metrics(x, y):
     }
 
 
-def do_eval(model, test_loader, device):
+def do_eval(model, test_loader, device, batches=10):
     all_mlp_out = []
     all_lin_out = []
     all_labels  = []
     
     counter = 0
-    for images, labels in test_loader:
+    
+    idxs = np.random.choice(len(test_loader), batches)
+    for idx in tqdm(idxs):
+        images, labels = test_loader[idx]
         images = images.to(device)
         labels = labels.cpu()
+        
         with torch.no_grad():
             res_dict = model(x1=images, class_only=True)
             mlp_out, lin_out = res_dict['class']
@@ -77,7 +81,7 @@ def do_eval(model, test_loader, device):
             all_labels.append(to_numpy(labels))
         
         counter += 1
-        if counter >= 10:
+        if counter >= batches:
             break
     
     all_mlp_out = np.row_stack(all_mlp_out)
@@ -135,7 +139,7 @@ def parse_args():
     # parameters for general training stuff
     parser.add_argument('--batch_size',    type=int,   default=128)
     parser.add_argument('--learning_rate', type=float, default=0.0002)
-    parser.add_argument('--eval_interval', type=int,   default=500)
+    parser.add_argument('--eval_interval', type=int,   default=25)
     parser.add_argument('--seed',          type=int,   default=1)
     parser.add_argument('--amp',           action='store_true', default=False)
     
@@ -148,7 +152,7 @@ def parse_args():
     parser.add_argument('--use_bn',  type=int, default=0)
     
     parser.add_argument('--output_dir', type=str, default='runs')
-    parser.add_argument('--run_name',   type=str, default='run0')
+    parser.add_argument('--run_name',   type=str, default='rev/rev0')
     
     return parser.parse_args()
 
@@ -174,7 +178,7 @@ train_loader, test_loader, num_classes = build_dataset(
     batch_size   = args.batch_size,
     input_dir    = args.input_dir,
     labeled_only = args.classifiers,
-    num_workers  = 8
+    num_workers  = 16
 )
 
 # --
@@ -272,7 +276,7 @@ for epoch_idx in range(epochs):
         writer.add_scalar('lin_f1',  log['lin_metrics']['f1'], step_counter)
         writer.add_scalar('lin_cov', log['lin_metrics']['cov'], step_counter)
         
-        if step_counter % 10 == 0:
+        if step_counter % args.eval_interval == 0:
             valid_log = do_eval(model, test_loader, device)
             
             writer.add_scalar('val_mlp_oe',  valid_log['mlp_metrics']['oe'], step_counter)
@@ -299,11 +303,8 @@ for epoch_idx in range(epochs):
         optim_inf.zero_grad()
         mixed_precision.backward(loss_inf + loss_cls, optim_inf)
         optim_inf.step()
-        
-        # if step_counter % args.eval_interval == 0:
-        #     test_scores = test_model(model, test_loader, device, max_evals=args.batch_size * 512)
-        #     print(json.dumps(test_scores))
     
+    print('-- end epoch --', file=sys.stderr)
     scheduler.step(epoch_idx)
     
     mlp_out, lin_out, labels, feats = dump_feats(model, test_loader, device)
@@ -311,6 +312,8 @@ for epoch_idx in range(epochs):
     np.save(os.path.join(args.output_dir, args.run_name, f'lin_out.{epoch_idx}.npy'), lin_out)
     np.save(os.path.join(args.output_dir, args.run_name, f'labels.{epoch_idx}.npy'), labels)
     np.save(os.path.join(args.output_dir, args.run_name, f'feats.{epoch_idx}.npy'), feats)
+    
+    torch.save(model.state_dict(), os.path.join(args.output_dir, args.run_name, 'weights.pth'))
 
 
 
